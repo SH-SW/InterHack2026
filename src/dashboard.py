@@ -124,8 +124,16 @@ with tab_alerts:
 # ====================================================================
 with tab_learning:
     st.markdown("### Outcome-driven feedback loop")
-    st.caption("Reads `analysis/alert_outcomes.csv` (mocked for demo) and shows how the "
-               "system is actually performing in the field.")
+
+    st.warning(
+        "⚠️ **Demo data — not real outcomes.** The 120 rows in "
+        "`analysis/alert_outcomes.csv` are a calibrated simulation built to "
+        "demonstrate the feedback loop. In production, outcomes would be fed "
+        "by CRM webhooks (HubSpot / Salesforce), sales-team workflow tools, or "
+        "a manual logging form. The schema, module, and dashboard are real; "
+        "only the rows are illustrative.",
+        icon="⚠️",
+    )
 
     metrics = compute_metrics()
 
