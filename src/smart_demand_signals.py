@@ -102,11 +102,13 @@ def post_campaign_grace_keys(ventas: pd.DataFrame, campanas: pd.DataFrame,
 
 
 def filter_commercial_activity(ventas: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
-    """Restrict to registered clients, real commercial transactions, on or before as_of."""
+    """Restrict to registered clients, real commercial transactions, on or before as_of.
+    Excludes zero-cost deliveries (e.g. damaged product replacements)."""
     return ventas[
         (~ventas["cliente_no_registrado"])
         & (ventas["tipo_transaccion"].isin(["venta", "devolucion"]))
         & (ventas["fecha"] <= as_of)
+        & ~((ventas["unidades"] > 0) & (ventas["valores_h"] == 0))
     ].copy()
 
 
@@ -148,6 +150,10 @@ def commodity_segments(v: pd.DataFrame, potencial: pd.DataFrame,
 
     pot = potencial.groupby(["id_cliente", "categoria_h"])["potencial_h"].sum().reset_index()
     agg = agg.merge(pot, on=["id_cliente", "categoria_h"], how="left").fillna({"potencial_h": 0})
+
+    # Adjust potential if sales exceed mis-reported potential
+    agg["potencial_h"] = agg[["potencial_h", "volume_eur_current"]].max(axis=1)
+
     agg["share_of_potential"] = agg.apply(
         lambda r: (r["volume_eur_current"] / r["potencial_h"]) if r["potencial_h"] > 0 else None,
         axis=1)
@@ -249,7 +255,11 @@ def technical_patterns(v: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
         if r["purchase_days_total"] < 3: return "insufficient_history"
         sys_pat = pd.notna(r["mean_interpurchase_days"]) and r["mean_interpurchase_days"] <= 90
         if sys_pat:
-            if r["signal_absent"]: return "systematic_silent"
+            if r["signal_absent"]:
+                # Temporal displacement: missing recent purchase but still within 1.5x expected interval
+                if r["recency_days"] <= r["mean_interpurchase_days"] * 1.5:
+                    return "systematic_delayed"
+                return "systematic_silent"
             if r["signal_drop_freq"] or r["signal_drop_volume"]: return "systematic_deterioration"
             if r["signal_anomaly_high"]: return "systematic_spike"
             return "systematic_active"
@@ -265,7 +275,17 @@ def technical_patterns(v: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
 # -------------------- ACTIVATION LAYER --------------------
 def _commodity_alert(r):
     seg = r["segment"]
-    if seg == "lost":
+    if seg == "loyal":
+        freq = r["frequency_current"] if r["frequency_current"] > 0 else 1
+        expected_interval = 365 / freq
+        urg, tipo = 0.6, "restock_window"
+        motivo = (f"Cliente leal: ventana de reposición inminente ({r['recency_days']:.0f}d "
+                  f"desde última compra vs {expected_interval:.0f}d esperado)")
+        impact = r["volume_eur_current"] / freq
+        prio = "Medium"
+        canal = "televenta"
+        win = 14
+    elif seg == "lost":
         rec = r["recency_days"] if pd.notna(r["recency_days"]) else 365
         impact = max(0.0, r["volume_eur_baseline"]) * 0.3   # discounted — recovery is hard
         urg = 0.2  # low urgency
@@ -309,6 +329,13 @@ def _technical_alert(r):
                   f"esperado €{r['expected_vol_recent']:,.0f}")
         prio = "High" if impact > 2000 else "Medium"
         canal, win = "delegado", 7
+    elif pat == "systematic_delayed":
+        impact = r["expected_vol_recent"]
+        urg, tipo = 0.8, "temporal_displacement"
+        motivo = (f"Cliente retrasado: {r['recency_days']:.0f}d sin compra vs "
+                  f"ciclo esperado de {r['mean_interpurchase_days']:.0f}d (desplazamiento temporal)")
+        prio = "Medium"
+        canal, win = "televenta", 14
     elif pat == "systematic_silent":
         ls = r["lifespan_days"] if pd.notna(r["lifespan_days"]) and r["lifespan_days"] > 0 else 365
         annual = (r["lifetime_volume"] / ls) * 365
@@ -343,7 +370,15 @@ def build_alerts(comm_seg: pd.DataFrame, tech_pat: pd.DataFrame,
     rows = []
 
     for _, r in comm_seg[comm_seg["segment"].isin(
-            ["promiscuous", "churn_risk_silent", "churn_risk_dropping", "lost"])].iterrows():
+            ["promiscuous", "churn_risk_silent", "churn_risk_dropping", "lost", "loyal"])].iterrows():
+
+        # Only alert loyal clients approaching their expected window
+        if r["segment"] == "loyal":
+            freq = r["frequency_current"] if r["frequency_current"] > 0 else 1
+            expected_interval = 365 / freq
+            if r["recency_days"] is None or pd.isna(r["recency_days"]) or r["recency_days"] < (expected_interval * 0.85):
+                continue
+
         tipo, motivo, prio, impact, urg, canal, win = _commodity_alert(r)
         rows.append({
             "id_cliente": r["id_cliente"],
@@ -366,7 +401,7 @@ def build_alerts(comm_seg: pd.DataFrame, tech_pat: pd.DataFrame,
         })
 
     for _, r in tech_pat[tech_pat["pattern"].isin([
-            "systematic_deterioration", "systematic_silent", "occasional_silent",
+            "systematic_deterioration", "systematic_delayed", "systematic_silent", "occasional_silent",
             "systematic_spike", "occasional_spike"])].iterrows():
         tipo, motivo, prio, impact, urg, canal, win = _technical_alert(r)
         rows.append({

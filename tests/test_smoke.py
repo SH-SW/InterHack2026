@@ -50,7 +50,7 @@ def test_alerts_sorted_by_score_desc():
 
 def test_tipo_alerta_uses_known_vocabulary():
     a = generate_alerts("2025-12-29", data=_get_data())
-    valid = {"capture_window", "silent", "churn_risk", "opportunity_spike", "lost"}
+    valid = {"capture_window", "silent", "churn_risk", "opportunity_spike", "lost", "restock_window", "temporal_displacement"}
     assert set(a["tipo_alerta"].unique()).issubset(valid)
 
 
