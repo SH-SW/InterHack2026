@@ -84,10 +84,10 @@ def compute_metrics() -> dict:
                  .reset_index())
     by_tipo["conversion_rate"]      = (by_tipo["n_won"] / by_tipo["n_outcomes"]).round(3)
     by_tipo["false_positive_rate"]  = (by_tipo["n_false_positive"] / by_tipo["n_outcomes"]).round(3)
+    n_won = by_tipo["n_won"].astype(float)
     by_tipo["avg_revenue_per_won"]  = (
-        by_tipo.apply(lambda r: r["revenue_captured_eur"] / r["n_won"]
-                      if r["n_won"] > 0 else None, axis=1)
-        .astype("Float64").round(0))
+        (by_tipo["revenue_captured_eur"] / n_won.where(n_won > 0))
+        .round(0).astype("Float64"))
 
     # Conversion by canal
     by_canal = (j.assign(won=(j["outcome_status"] == "won"))
