@@ -214,9 +214,9 @@ right = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
                            Inches(6.95), Inches(1.85), Inches(5.9), Inches(5.1))
 fill(right, TEAL); line_no(right)
 add_text(s, Inches(7.25), Inches(2.05), Inches(5.5), Inches(0.5),
-         "PRODUCTOS TÉCNICOS", size=12, bold=True, colour=CORAL, font=H_FONT)
+         "TECHNICAL PRODUCTS", size=12, bold=True, colour=CORAL, font=H_FONT)
 add_text(s, Inches(7.25), Inches(2.45), Inches(5.5), Inches(0.7),
-         "Biomateriales",
+         "Biomaterials",
          size=24, bold=True, colour=WHITE, font=H_FONT)
 add_text(s, Inches(7.25), Inches(3.2), Inches(5.5), Inches(0.5),
          "Sporadic purchases, case-driven demand.",
@@ -374,15 +374,15 @@ s = prs.slides.add_slide(blank)
 slide_title(s, "Live demo · 3 minutes")
 
 steps = [
-    ("01", "Daily cadence",
-     "Drag the date picker back to 2024-06-30. The alert table changes. "
-     "Same code, any historical date — the system is idempotent."),
-    ("02", "Drill into one alert",
-     "Pick the top alert. Read the motivo. Click Trace features. "
-     "See the raw numbers that fired it. No black box."),
-    ("03", "Learning loop",
-     "Switch to the Learning loop tab. 120 mocked outcomes show the system "
-     "self-tuning: capture_window converts at 33%, silent at 11%."),
+    ("01", "Client view — one clinic, one action",
+     "Pick a high-score client. See the 4-category banner: Lost / Loss risk / "
+     "Opportunity / Healthy. Each gives one concrete next step — not a label."),
+    ("02", "Monitoring — daily cadence + drill-down",
+     "Switch the date back to 2024-06-30. Same code, different alerts. "
+     "Filter to High priority. Export top-N as HubSpot Tasks JSON."),
+    ("03", "Learning loop — system improving over time",
+     "120 mocked outcomes seed the metrics. Conversion by tipo: capture 33%, "
+     "silent 11%. The system suggests threshold adjustments automatically."),
 ]
 y = Inches(1.6)
 for code, title, desc in steps:
